@@ -18,28 +18,31 @@ It is designed as an internal/dev utility and favors simple, explicit behavior o
 
 ## Current Build Status
 
-The project is under active build. Current status:
+| Phase | Status |
+|-------|--------|
+| 1 — Foundation | Done |
+| 2 — Core K8s Engine | Done |
+| 3 — Express Server + Routes | Done |
+| 4 — CronJob Entrypoint | Done |
+| 5 — UI | Next |
+| 6 — Kubernetes Manifests | Pending |
+| 7 — Polish | Partial (README, tests) |
 
-- Completed: Phase 1 (Foundation)
-- Completed: Phase 2 (Core K8s Engine)
-- Pending: Phase 3+ (Express routes, server, UI, manifests, cron entrypoint)
+**Quick start:** see [QUICKSTART.md](QUICKSTART.md)
 
-Implemented modules today:
+Implemented modules:
 
-- `src/config.js`
-- `src/logger.js`
-- `src/k8s/client.js`
-- `src/k8s/comms.js`
-- `src/k8s/scaleDown.js`
-- `src/k8s/scaleUp.js`
-- `src/k8s/validate.js`
-- `src/k8s/cronManager.js`
+- `src/config.js`, `src/logger.js`, `src/app.js`, `src/server.js`
+- `src/k8s/*` — client, comms, scaleDown, scaleUp, validate, cronManager
+- `src/routes/*` — auth, status, scale, validate, cron
+- `scripts/cronEntry.js`
+- `tests/*` — Phase 1–4 test package (16 tests)
 
 ## Hard Invariants
 
 These are non-negotiable behavior rules:
 
-1. In-cluster kubeconfig by default (`kc.loadInCluster()`).
+1. In-cluster kubeconfig in production (`kubeConfig.loadFromCluster()`).
 2. ConfigMap is the only state store.
 3. Snapshot must be written before any scale-down patch.
 4. Scale-up restores only what exists in snapshot.
@@ -64,8 +67,16 @@ These are non-negotiable behavior rules:
 ```text
 kuberest/
 ├── src/
+│   ├── app.js
+│   ├── server.js
 │   ├── config.js
 │   ├── logger.js
+│   ├── routes/
+│   │   ├── auth.js
+│   │   ├── status.js
+│   │   ├── scale.js
+│   │   ├── validate.js
+│   │   └── cron.js
 │   ├── k8s/
 │   │   ├── client.js
 │   │   ├── comms.js
@@ -73,13 +84,19 @@ kuberest/
 │   │   ├── scaleUp.js
 │   │   ├── validate.js
 │   │   └── cronManager.js
-│   ├── routes/               # planned
-│   └── ui/                   # planned
-├── scripts/                  # planned cron entrypoint
-├── manifests/                # planned k8s manifests
+│   └── ui/                   # Phase 5
+├── scripts/
+│   └── cronEntry.js
+├── tests/
+│   ├── fixtures/
+│   ├── helpers/
+│   └── *.test.js
+├── manifests/                # Phase 6
 ├── config.yaml
 ├── package.json
 ├── Dockerfile
+├── docker-compose.test.yml
+├── QUICKSTART.md
 ├── CLAUDE.md
 ├── LOAD_CONTEXT.md
 └── TODO.md
@@ -97,6 +114,22 @@ kuberest/
 ```bash
 npm install
 ```
+
+## Testing (Phases 1–4)
+
+Mock-based tests — no Kubernetes cluster required:
+
+```bash
+npm test
+```
+
+Run the same suite in Docker:
+
+```bash
+npm run test:docker
+```
+
+See [QUICKSTART.md](QUICKSTART.md) for API smoke tests against a live cluster.
 
 ## Configuration
 
@@ -223,19 +256,23 @@ export NODE_ENV=development
 }
 ```
 
-## Planned API Surface (Phase 3)
+## API Surface
 
-- `POST /auth/login`
-- `POST /auth/logout`
-- `GET /auth/me`
-- `GET /api/status/namespaces`
-- `GET /api/status/namespace/:ns`
-- `POST /api/scale/down`
-- `POST /api/scale/up`
-- `GET /api/cron/jobs`
-- `PATCH /api/cron/:name/schedule`
-- `PATCH /api/cron/:name/suspend`
-- `POST /api/validate`
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/auth/login` | None | Issue JWT cookie |
+| POST | `/auth/logout` | Any | Clear cookie |
+| GET | `/auth/me` | Any | Return `{ username, role }` |
+| GET | `/api/status/namespaces` | Any | All namespace status cards |
+| GET | `/api/status/namespace/:ns` | Any | Workload detail for one namespace |
+| POST | `/api/scale/down` | Admin | Scale down namespace |
+| POST | `/api/scale/up` | Admin | Scale up namespace |
+| GET | `/api/cron/jobs` | Any | List CronJobs |
+| PATCH | `/api/cron/:name/schedule` | Admin | Update cron schedule |
+| PATCH | `/api/cron/:name/suspend` | Admin | Suspend/resume CronJob |
+| POST | `/api/validate` | Any | Run resource validation |
+
+All responses: `{ success: true, data: {} }` or `{ success: false, error: "" }`.
 
 ## Docker
 

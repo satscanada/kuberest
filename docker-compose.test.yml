@@ -1,0 +1,11 @@
+services:
+  test:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      NODE_ENV: test
+      KUBEREST_CONFIG_PATH: /app/tests/fixtures/config.test.yaml
+      TOOL_NAMESPACE: kuberest-test
+    command: sh -c "npm ci && npm test"

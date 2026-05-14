@@ -10,7 +10,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "cron": "node scripts/cronEntry.js"
+    "cron": "node scripts/cronEntry.js",
+    "test": "node --test tests/*.test.js",
+    "test:docker": "docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from test"
   },
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",
@@ -20,5 +22,8 @@
     "js-yaml": "^4.1.1",
     "jsonwebtoken": "^9.0.3",
     "pino": "^10.3.1"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.0"
   }
 }

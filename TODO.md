@@ -27,18 +27,18 @@ Check off items as you complete them. Work one item at a time. Do not skip ahead
 
 ## Phase 3 — Express Server + Routes
 
-- [ ] `src/routes/auth.js` — login, logout, /me endpoints + `requireAuth` middleware
-- [ ] `src/routes/status.js` — GET /api/status/namespaces, GET /api/status/namespace/:ns
-- [ ] `src/routes/scale.js` — POST /api/scale/down, POST /api/scale/up (admin only)
-- [ ] `src/routes/validate.js` — POST /api/validate (any auth)
-- [ ] `src/routes/cron.js` — GET /api/cron/jobs, PATCH schedule, PATCH suspend
-- [ ] `src/server.js` — bootstrap Express, mount routes, serve static UI
+- [x] `src/routes/auth.js` — login, logout, /me endpoints + `requireAuth` middleware
+- [x] `src/routes/status.js` — GET /api/status/namespaces, GET /api/status/namespace/:ns
+- [x] `src/routes/scale.js` — POST /api/scale/down, POST /api/scale/up (admin only)
+- [x] `src/routes/validate.js` — POST /api/validate (any auth)
+- [x] `src/routes/cron.js` — GET /api/cron/jobs, PATCH schedule, PATCH suspend
+- [x] `src/server.js` — bootstrap Express, mount routes, serve static UI
 
 ---
 
 ## Phase 4 — CronJob Entrypoint
 
-- [ ] `scripts/cronEntry.js` — CLI entrypoint, `--mode scale-down|scale-up`, `--all` or `--namespace`
+- [x] `scripts/cronEntry.js` — CLI entrypoint, `--mode scale-down|scale-up`, `--all` or `--namespace`
 
 ---
 
@@ -70,7 +70,7 @@ Check off items as you complete them. Work one item at a time. Do not skip ahead
 ## Phase 7 — Polish + README
 
 - [x] `README.md` — setup instructions, how to generate bcrypt hashes, how to deploy, how to configure comms
-- [ ] Add `NODE_ENV=development` fallback to `src/k8s/client.js` for local dev
+- [x] Add `NODE_ENV=development` fallback to `src/k8s/client.js` for local dev
 - [ ] Smoke test: scale down + up a test namespace end-to-end
 - [ ] Smoke test: validation scan returns correct pass/fail
 - [ ] Smoke test: CronJob suspend/resume via UI
