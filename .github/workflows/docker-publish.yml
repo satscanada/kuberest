@@ -2,11 +2,8 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
-  workflow_dispatch:
 
 env:
   IMAGE_NAME: kuberest
@@ -37,11 +34,11 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=
+            type=raw,value=latest
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=sha,prefix=
 
       - name: Build and push
         uses: docker/build-push-action@v6

@@ -260,11 +260,13 @@ This repo includes `.github/workflows/docker-publish.yml`, which builds the imag
 
 **Triggers**
 
-| Event | Tags pushed |
-|-------|-------------|
-| Push to `main` | `latest`, commit SHA |
-| Push tag `v1.2.3` | `1.2.3`, `1.2`, `1`, commit SHA |
-| Manual run (`workflow_dispatch`) | Same rules based on ref |
+The workflow runs **only** when you push a version tag — not on ordinary commits to `main`.
+
+| Event | Tags pushed to Docker Hub |
+|-------|---------------------------|
+| Push tag `v1.2.3` | `latest`, `1.2.3`, `1.2`, `1`, commit SHA |
+
+Tag names must start with `v` (e.g. `v0.1.0`, `v1.0.0`).
 
 **Image name**
 
@@ -311,20 +313,26 @@ No other secrets are required for the default workflow.
 
 #### Step 4 — Push code to GitHub
 
-1. Initialize git and add the remote if you have not already:
-
 ```bash
-git init
-git remote add origin git@github.com:<your-user>/kuberest.git
-git add .
-git commit -m "Add Docker publish workflow"
-git branch -M main
-git push -u origin main
+git push origin main
 ```
 
-2. After the push, open **Actions** in GitHub and confirm **Build and Push Docker Image** runs successfully.
+Pushing to `main` alone does **not** build an image. The Docker workflow runs when you publish a release tag (see below).
 
-#### Step 5 — Verify the image on Docker Hub
+#### Step 5 — Publish a release (build + push image)
+
+Create and push a semver tag. This triggers the workflow:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Or create a **GitHub Release** from the repo UI (**Releases** → **Draft a new release** → choose/create tag `v0.1.0` → **Publish release**). Pushing the tag is what starts the build.
+
+Open **Actions** and confirm **Build and Push Docker Image** completes successfully.
+
+#### Step 6 — Verify the image on Docker Hub
 
 1. Go to `https://hub.docker.com/r/<your-dockerhub-username>/kuberest`.
 2. Confirm tags such as `latest` and the commit SHA appear under **Tags**.
@@ -335,7 +343,7 @@ Pull the image:
 docker pull <your-dockerhub-username>/kuberest:latest
 ```
 
-#### Step 6 — Use the image in Kubernetes (when manifests are ready)
+#### Step 7 — Use the image in Kubernetes (when manifests are ready)
 
 Reference the published image in your Deployment/CronJob manifests:
 
@@ -343,22 +351,7 @@ Reference the published image in your Deployment/CronJob manifests:
 image: <your-dockerhub-username>/kuberest:latest
 ```
 
-For reproducible deploys, pin a specific tag (commit SHA or semver) instead of `latest`.
-
-#### Optional — Release with semver tags
-
-To publish versioned images:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The workflow tags the image as `0.1.0`, `0.1`, and `0` in addition to the commit SHA.
-
-#### Optional — Run the workflow manually
-
-GitHub → **Actions** → **Build and Push Docker Image** → **Run workflow** → choose branch → **Run workflow**.
+For reproducible deploys, pin a specific semver tag (e.g. `0.1.0`) instead of `latest`.
 
 #### Troubleshooting
 
@@ -366,7 +359,7 @@ GitHub → **Actions** → **Build and Push Docker Image** → **Run workflow** 
 |---------|-----|
 | `denied: requested access to the resource is denied` | Check `DOCKERHUB_USERNAME` matches the account that owns the repo; token has write permission. |
 | Repository does not exist on Docker Hub | Create `kuberest` repository first, or change `IMAGE_NAME` in the workflow. |
-| Workflow does not run | Ensure default branch is `main`, or edit workflow `branches` to match yours. |
+| Workflow does not run | Push a tag matching `v*` (e.g. `v0.1.0`); plain `main` pushes do not trigger builds. |
 | Login fails | Regenerate token; confirm secret name is exactly `DOCKERHUB_TOKEN`. |
 
 #### Security notes
