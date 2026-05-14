@@ -1,0 +1,24 @@
+{
+  "name": "kuberest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kubernetes workload scheduler for intuitive start/stop of namespaces on a configurable schedule",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "cron": "node scripts/cronEntry.js"
+  },
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "js-yaml": "^4.1.1",
+    "jsonwebtoken": "^9.0.3",
+    "pino": "^10.3.1"
+  }
+}

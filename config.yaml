@@ -1,0 +1,29 @@
+auth:
+  jwt_secret: "change-me-in-production"
+  token_expiry: "8h"
+  users:
+    - username: admin
+      # Replace with your own bcrypt hash before deploy.
+      password_hash: "$2a$10$7EqJtq98hPqEX7fNZaFWoO.H8hA4n9n0r9YuqbWtaXDpUe1koXSPK"
+      role: admin
+    - username: viewer
+      # Replace with your own bcrypt hash before deploy.
+      password_hash: "$2b$10$TKh8H1.PfQ4x7Yf2w8M2Vu7N6fQ5fA02oR4i8fDwWQK2Mih0Y0iP2"
+      role: viewer
+
+namespaces:
+  - name: payments
+    enabled: true
+  - name: reporting
+    enabled: true
+
+schedule:
+  scale_down: "0 20 * * 5"
+  scale_up: "0 6 * * 1"
+
+comms:
+  enabled: false
+  endpoint: "https://your-notification-service/api/events"
+  secret_header: "X-KubeRest-Secret"
+  secret_value: "replace-me"
+  timeout_ms: 3000
