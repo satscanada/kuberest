@@ -1,12 +1,12 @@
 # KubeRest Quickstart
 
-Get KubeRest running and verify Phases 1–4 (foundation, K8s engine, API, cron entrypoint) before building the UI and manifests.
+Get KubeRest running locally, run the test suite, and use the web UI.
 
 ## Prerequisites
 
 - Node.js 20+
-- Docker (for `npm run test:docker` and image builds)
-- Kubernetes cluster (for in-cluster deployment; optional for local unit tests)
+- Docker Desktop (or Docker Engine + Compose)
+- Kubernetes cluster with kubeconfig at `~/.kube/config` (for live API/UI data)
 
 ## 1. Install dependencies
 
@@ -16,45 +16,68 @@ cd kuberest
 npm install
 ```
 
-## 2. Run the test suite (Phases 1–4)
-
-Tests use mocked Kubernetes clients — no live cluster required.
+## 2. Run tests (Phases 1–5)
 
 ```bash
 npm test
 ```
 
-Expected: **16 tests passing** across config, K8s engine, API routes, and cron CLI helpers.
+Expected: **24 tests passing** (config, K8s engine, API, cron CLI, UI static assets).
 
-### Run tests in Docker
+In Docker:
 
 ```bash
 npm run test:docker
 ```
 
-This uses `docker-compose.test.yml` to run the same suite inside `node:20-alpine`.
+## 3. Run locally with Docker (recommended)
 
-## 3. Configure the app
-
-Copy and edit `config.yaml`:
-
-| Section | What to set |
-|---------|-------------|
-| `auth.jwt_secret` | Random secret for JWT signing |
-| `auth.users` | Usernames + bcrypt `password_hash` values |
-| `namespaces` | Target namespaces and `enabled` flag |
-| `schedule` | Default cron expressions (used by manifests later) |
-| `comms` | Optional webhook (`enabled: false` to skip) |
-
-Generate a bcrypt hash:
+Build and start the app:
 
 ```bash
-node -e "const b=require('bcryptjs'); console.log(b.hashSync('yourpassword',10))"
+npm run docker:up
 ```
 
-## 4. Local development (out of cluster)
+| Command | Action |
+|---------|--------|
+| `npm run docker:up` | Build image and start on port 3000 |
+| `npm run docker:logs` | Tail application logs |
+| `npm run docker:down` | Stop and remove container |
 
-Point at a local kubeconfig and use development mode:
+Open **http://localhost:3000** in your browser.
+
+### Docker login credentials
+
+`config.docker.yaml` is mounted into the container:
+
+| User | Password | Role |
+|------|----------|------|
+| `admin` | `admin` | Full access (scale, cron edit) |
+| `viewer` | `viewer` | Read-only (scale/cron actions hidden) |
+
+### What Docker Compose does
+
+- Builds from `Dockerfile`
+- Sets `NODE_ENV=development` and mounts `~/.kube/config` at `/kube/config`
+- Rewrites `127.0.0.1` / `localhost` API URLs to `desktop-control-plane` for Docker Desktop/local clusters where kubeconfig points to localhost
+- Mounts `config.docker.yaml` as `/app/config.yaml`
+- Exposes port **3000**
+
+## 4. UI pages
+
+| URL | Purpose |
+|-----|---------|
+| `/login` | Sign in |
+| `/dashboard` | Namespace status cards and aggregate replica metrics (auto-refresh 30s) |
+| `/scale` | Namespace dropdown, workload table, and manual scale down/up per namespace or workload (admin) |
+| `/cron` | View/edit CronJob schedules and create jobs with the admin wizard |
+| `/snapshots` | Inspect active snapshot ConfigMaps and stored replica counts |
+| `/validate` | Namespace dropdown and resource requests/limits validation scan |
+| Namespaces tab | Admin-only namespace discovery and tracking enable/disable controls |
+
+The current UI is built from `frontend/` with React + Vite and served from `src/ui/`. Run `npm run ui:build` after changing frontend files.
+
+## 5. Local development without Docker
 
 ```bash
 export KUBECONFIG=~/.kube/config
@@ -63,91 +86,47 @@ export LOG_LEVEL=debug
 npm run dev
 ```
 
-Server listens on `http://localhost:3000`.
+React UI hot reload:
 
-> UI pages (Phase 5) are not built yet. Use the API directly (see below).
+```bash
+npm run ui:dev
+```
 
-## 5. API smoke test
+Edit `config.yaml` for credentials, or copy `config.docker.yaml` values.
 
-Start the server (`npm run dev`), then:
-
-### Login (sets httpOnly cookie)
+## 6. API smoke test (optional)
 
 ```bash
 curl -c cookies.txt -X POST http://localhost:3000/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"yourpassword"}'
-```
+  -d '{"username":"admin","password":"admin"}'
 
-### Check session
-
-```bash
-curl -b cookies.txt http://localhost:3000/auth/me
-```
-
-### Namespace status
-
-```bash
 curl -b cookies.txt http://localhost:3000/api/status/namespaces
 ```
 
-### Manual scale-down (admin)
+## 7. Cron entrypoint
 
 ```bash
-curl -b cookies.txt -X POST http://localhost:3000/api/scale/down \
-  -H 'Content-Type: application/json' \
-  -d '{"namespace":"payments"}'
-```
-
-### List CronJobs
-
-```bash
-curl -b cookies.txt http://localhost:3000/api/cron/jobs
-```
-
-## 6. Cron entrypoint (Phase 4)
-
-Inside the cluster (or locally with `NODE_ENV=development` and a valid kubeconfig):
-
-```bash
-# Scale down all enabled namespaces
 npm run cron -- --mode scale-down --all
-
-# Scale up one namespace
 npm run cron -- --mode scale-up --namespace payments
 ```
 
-## 7. Build and publish Docker image
+## 8. Publish Docker image (CI)
 
-Images are built **only when you push a version tag** (see README CI/CD section).
+Push a version tag to trigger GitHub Actions → Docker Hub:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Pull from Docker Hub after the GitHub Action completes:
+## 9. What's next
 
-```bash
-docker pull <your-dockerhub-username>/kuberest:0.1.0
-```
+| Phase | Status |
+|-------|--------|
+| 1–7 | Done |
+| Deferred | HPA support, audit log, ingress/TLS, retries, multi-cluster |
 
-## 8. What's next
+## Test suite credentials
 
-| Phase | Status | Contents |
-|-------|--------|----------|
-| 1–4 | Done | Foundation, K8s engine, API, cron entrypoint |
-| 5 | Next | Web UI (`src/ui/`) |
-| 6 | Pending | Kubernetes manifests |
-| 7 | Partial | README done; cluster smoke tests pending |
-
-See `TODO.md` for the full checklist.
-
-## Test credentials (test suite only)
-
-The file `tests/fixtures/config.test.yaml` defines:
-
-- **admin** / **password**
-- **viewer** / **password**
-
-These are for automated tests only — do not use in production `config.yaml`.
+`tests/fixtures/config.test.yaml` uses **admin** / **password** and **viewer** / **password** for automated tests only.

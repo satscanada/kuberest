@@ -32,6 +32,7 @@
 | `src/routes/status.js` | Namespace + workload status endpoint |
 | `src/k8s/scaleDown.js` | Snapshot replicas → write ConfigMap → patch replicas to 0 |
 | `src/k8s/scaleUp.js` | Read ConfigMap → restore replicas → clear ConfigMap entry |
+| `src/k8s/snapshot.js` | Shared ConfigMap snapshot read/write helpers |
 | `src/k8s/validate.js` | Scan Deployments + StatefulSets for missing requests/limits |
 | `src/k8s/comms.js` | Fire-and-forget POST to configured endpoint |
 | `src/k8s/cronManager.js` | Read/patch CronJob manifests via K8s API |
@@ -120,7 +121,9 @@ comms:
 The ServiceAccount needs:
 - `get/list/watch/patch/update` on `deployments`, `statefulsets` in target namespaces
 - `get/list/watch/create/update/patch` on `configmaps` in the tool's own namespace
+- `get/list/watch` on `namespaces` for admin namespace discovery
 - `get/list/watch/patch/update` on `cronjobs` in the tool's own namespace
+- `get/list/watch/create` on `jobs` in the tool's own namespace for CronJob run-now
 
 ---
 

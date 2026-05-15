@@ -11,8 +11,14 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "cron": "node scripts/cronEntry.js",
+    "hash-password": "node scripts/hashPassword.js",
+    "ui:dev": "npm --prefix frontend run dev",
+    "ui:build": "npm --prefix frontend run build && rm -rf src/ui && mkdir -p src/ui && cp -R frontend/dist/* src/ui/",
     "test": "node --test tests/*.test.js",
-    "test:docker": "docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from test"
+    "test:docker": "docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from test",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f kuberest"
   },
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",
@@ -24,6 +30,6 @@
     "pino": "^10.3.1"
   },
   "devDependencies": {
-    "supertest": "^7.1.0"
+    "supertest": "^7.2.2"
   }
 }

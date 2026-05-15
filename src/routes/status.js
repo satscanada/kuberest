@@ -2,20 +2,12 @@ const express = require("express");
 const { requireAuth } = require("./auth");
 const { loadConfig } = require("../config");
 const { appsV1, coreV1 } = require("../k8s/client");
+const { getK8sErrorMessage, isNotFound, listItems } = require("../k8s/helpers");
 const logger = require("../logger");
 
 const router = express.Router();
 const config = loadConfig();
 const TOOL_NAMESPACE = process.env.TOOL_NAMESPACE || "kuberest";
-
-function getK8sErrorMessage(error) {
-  return (
-    error?.body?.message ||
-    error?.response?.body?.message ||
-    error?.message ||
-    "Unknown K8s error"
-  );
-}
 
 function snapshotConfigMapName(namespace) {
   return `kuberest-snapshot-${namespace}`;
@@ -23,8 +15,11 @@ function snapshotConfigMapName(namespace) {
 
 async function readSnapshot(namespace) {
   try {
-    const response = await coreV1.readNamespacedConfigMap(snapshotConfigMapName(namespace), TOOL_NAMESPACE);
-    const snapshotRaw = response.body?.data?.snapshot;
+    const response = await coreV1.readNamespacedConfigMap({
+      name: snapshotConfigMapName(namespace),
+      namespace: TOOL_NAMESPACE
+    });
+    const snapshotRaw = response?.data?.snapshot;
 
     if (!snapshotRaw) {
       return null;
@@ -32,7 +27,7 @@ async function readSnapshot(namespace) {
 
     return JSON.parse(snapshotRaw);
   } catch (error) {
-    if (error?.response?.statusCode === 404 || error?.statusCode === 404) {
+    if (isNotFound(error)) {
       return null;
     }
     throw new Error(`K8s API error reading snapshot: ${getK8sErrorMessage(error)}`);
@@ -41,18 +36,18 @@ async function readSnapshot(namespace) {
 
 async function listWorkloads(namespace) {
   const [deployments, statefulSets] = await Promise.all([
-    appsV1.listNamespacedDeployment(namespace),
-    appsV1.listNamespacedStatefulSet(namespace)
+    appsV1.listNamespacedDeployment({ namespace }),
+    appsV1.listNamespacedStatefulSet({ namespace })
   ]);
 
-  const deploymentItems = (deployments.body.items || []).map((item) => ({
+  const deploymentItems = listItems(deployments).map((item) => ({
     name: item.metadata?.name,
     kind: "Deployment",
     replicas: item.status?.readyReplicas ?? 0,
     desired: item.spec?.replicas ?? 0
   }));
 
-  const statefulSetItems = (statefulSets.body.items || []).map((item) => ({
+  const statefulSetItems = listItems(statefulSets).map((item) => ({
     name: item.metadata?.name,
     kind: "StatefulSet",
     replicas: item.status?.readyReplicas ?? 0,
@@ -73,8 +68,14 @@ function summarizeWorkloads(workloads) {
 router.get("/namespaces", requireAuth(), async (req, res) => {
   try {
     const namespaces = await Promise.all(
-      config.namespaces.map(async (entry) => {
-        const snapshot = await readSnapshot(entry.name);
+      config.namespaces.filter((entry) => entry.enabled).map(async (entry) => {
+        let snapshot = null;
+        try {
+          snapshot = await readSnapshot(entry.name);
+        } catch (error) {
+          logger.warn({ namespace: entry.name, err: error.message }, "Failed to read snapshot for status");
+        }
+
         let workloads = [];
         let summary = { workloadCount: 0, totalReplicas: 0, desiredReplicas: 0 };
 

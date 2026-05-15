@@ -15,17 +15,11 @@ function createApp() {
   app.use("/api/cron", require("./routes/cron"));
   app.use("/api/validate", require("./routes/validate"));
   app.use("/api/status", require("./routes/status"));
+  app.use("/api/admin", require("./routes/admin"));
+  app.use("/api/snapshots", require("./routes/snapshots"));
 
-  const uiPages = ["login", "dashboard", "scale", "cron", "validate"];
-
-  for (const page of uiPages) {
-    app.get(`/${page}`, (req, res) => {
-      res.sendFile(path.join(__dirname, "ui", `${page}.html`));
-    });
-  }
-
-  app.get("/", (req, res) => {
-    res.redirect("/dashboard");
+  app.get(["/", "/login", "/dashboard", "/scale", "/cron", "/snapshots", "/validate", "/admin"], (req, res) => {
+    res.sendFile(path.join(__dirname, "ui", "index.html"));
   });
 
   app.use((req, res) => {

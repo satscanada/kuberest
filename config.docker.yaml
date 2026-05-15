@@ -1,0 +1,27 @@
+auth:
+  jwt_secret: "local-docker-dev-secret"
+  token_expiry: "8h"
+  users:
+    - username: admin
+      password_hash: "$2b$10$qm1Cg3L6FuMUiCQfP8Gchu4O3yUDMekB61u8n6zZWPgisjS/WMTxa"
+      role: admin
+    - username: viewer
+      password_hash: "$2b$10$9VDji.4ddKlp0NQeDvOL6eXa4C5gfKbk.qW9otrwe7U9blC0x8TpG"
+      role: viewer
+
+namespaces:
+  - name: payments
+    enabled: true
+  - name: reporting
+    enabled: true
+
+schedule:
+  scale_down: "0 20 * * 5"
+  scale_up: "0 6 * * 1"
+
+comms:
+  enabled: false
+  endpoint: "https://your-notification-service/api/events"
+  secret_header: "X-KubeRest-Secret"
+  secret_value: "replace-me"
+  timeout_ms: 3000

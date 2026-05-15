@@ -24,9 +24,9 @@ It is designed as an internal/dev utility and favors simple, explicit behavior o
 | 2 — Core K8s Engine | Done |
 | 3 — Express Server + Routes | Done |
 | 4 — CronJob Entrypoint | Done |
-| 5 — UI | Next |
-| 6 — Kubernetes Manifests | Pending |
-| 7 — Polish | Partial (README, tests) |
+| 5 — UI | Done |
+| 6 — Kubernetes Manifests | Done |
+| 7 — Polish | Done |
 
 **Quick start:** see [QUICKSTART.md](QUICKSTART.md)
 
@@ -35,8 +35,11 @@ Implemented modules:
 - `src/config.js`, `src/logger.js`, `src/app.js`, `src/server.js`
 - `src/k8s/*` — client, comms, scaleDown, scaleUp, validate, cronManager
 - `src/routes/*` — auth, status, scale, validate, cron
+- `frontend/*` — React + Vite source for the modern UI
+- `src/ui/*` — built frontend assets served by Express
 - `scripts/cronEntry.js`
-- `tests/*` — Phase 1–4 test package (16 tests)
+- `tests/*` — Phase 1–5 test package
+- `docker-compose.yml` — local Docker deployment
 
 ## Hard Invariants
 
@@ -61,6 +64,7 @@ These are non-negotiable behavior rules:
 - `jsonwebtoken`
 - `bcryptjs`
 - `cookie-parser`
+- React 19 + Vite 8 (UI)
 
 ## Repository Layout
 
@@ -84,7 +88,8 @@ kuberest/
 │   │   ├── scaleUp.js
 │   │   ├── validate.js
 │   │   └── cronManager.js
-│   └── ui/                   # Phase 5
+│   └── ui/                   # built React bundle served by Express
+├── frontend/                 # React + Vite source
 ├── scripts/
 │   └── cronEntry.js
 ├── tests/
@@ -93,8 +98,10 @@ kuberest/
 │   └── *.test.js
 ├── manifests/                # Phase 6
 ├── config.yaml
+├── config.docker.yaml        # local Docker credentials
 ├── package.json
 ├── Dockerfile
+├── docker-compose.yml        # local deployment
 ├── docker-compose.test.yml
 ├── QUICKSTART.md
 ├── CLAUDE.md
@@ -113,9 +120,10 @@ kuberest/
 
 ```bash
 npm install
+npm --prefix frontend install
 ```
 
-## Testing (Phases 1–4)
+## Testing (Phases 1–5)
 
 Mock-based tests — no Kubernetes cluster required:
 
@@ -129,7 +137,29 @@ Run the same suite in Docker:
 npm run test:docker
 ```
 
-See [QUICKSTART.md](QUICKSTART.md) for API smoke tests against a live cluster.
+See [QUICKSTART.md](QUICKSTART.md) for local Docker deployment and UI access.
+
+## Local Docker deployment
+
+Run KubeRest in Docker with your local kubeconfig mounted:
+
+```bash
+npm run docker:up
+```
+
+Open **http://localhost:3000** and sign in with:
+
+| User | Password |
+|------|----------|
+| `admin` | `admin` |
+| `viewer` | `viewer` |
+
+Uses `config.docker.yaml` (mounted over `config.yaml`). Requires `~/.kube/config` for API calls to your cluster.
+
+```bash
+npm run docker:logs   # follow logs
+npm run docker:down   # stop
+```
 
 ## Configuration
 
@@ -190,13 +220,46 @@ export KUBECONFIG=~/.kube/config
 export NODE_ENV=development
 ```
 
-> Note: a local fallback in `src/k8s/client.js` is planned and tracked in `TODO.md`.
+Backend only:
+
+```bash
+npm run dev
+```
+
+Frontend (hot reload via Vite):
+
+```bash
+npm run ui:dev
+```
+
+Build frontend bundle into `src/ui`:
+
+```bash
+npm run ui:build
+```
+
+## Web UI
+
+The UI is a React + Vite single-page app built into `src/ui` and served by Express. Its visual system follows `DESIGN.md`: black global navigation, parchment workspace, SF/system typography, pill controls, consistent SVG icons, and the single Action Blue (`#0066cc`) interactive color.
+
+Main workflows:
+
+- Dashboard: aggregate replica metrics and namespace state cards.
+- Scale: namespace dropdown, workload table, and admin-only scale up/down actions.
+- CronJobs: schedule table plus a three-step creation wizard for intent, cadence, target, and review.
+- Snapshots: read-only view of active snapshot ConfigMaps and stored replica counts.
+- Validate: namespace dropdown, validation trigger, summary, and pass/fail table.
+- Namespaces: admin-only cluster namespace discovery with enable/disable tracking controls.
 
 ## Available npm Scripts
 
-- `npm start` -> starts `src/server.js` (Phase 3 pending)
-- `npm run dev` -> watch mode for `src/server.js` (Phase 3 pending)
-- `npm run cron` -> runs `scripts/cronEntry.js` (Phase 4 pending)
+- `npm start` -> starts `src/server.js`
+- `npm run dev` -> watch mode for `src/server.js`
+- `npm run cron` -> runs `scripts/cronEntry.js`
+- `npm run ui:dev` -> starts Vite for frontend development
+- `npm run ui:build` -> builds the React UI and copies assets into `src/ui`
+- `npm run docker:up` -> builds and starts the local Docker deployment
+- `npm run docker:down` -> stops the local Docker deployment
 
 ## Engine Modules (Implemented)
 
@@ -232,6 +295,7 @@ export NODE_ENV=development
 ### `src/k8s/cronManager.js`
 
 - Lists CronJobs in `TOOL_NAMESPACE`.
+- Creates CronJobs that call `scripts/cronEntry.js` with `--mode` and `--all` or `--namespace`.
 - Updates `spec.suspend`.
 - Updates `spec.schedule`.
 
@@ -267,10 +331,18 @@ export NODE_ENV=development
 | GET | `/api/status/namespace/:ns` | Any | Workload detail for one namespace |
 | POST | `/api/scale/down` | Admin | Scale down namespace |
 | POST | `/api/scale/up` | Admin | Scale up namespace |
+| POST | `/api/scale/down/workload` | Admin | Scale down one Deployment/StatefulSet after snapshot |
+| POST | `/api/scale/up/workload` | Admin | Restore one Deployment/StatefulSet from snapshot |
+| POST | `/api/scale/preview` | Admin | Preview namespace/workload scale operation |
 | GET | `/api/cron/jobs` | Any | List CronJobs |
+| POST | `/api/cron/jobs` | Admin | Create CronJob (scale-up/down, all or namespace target) |
+| POST | `/api/cron/:name/run` | Admin | Create a one-off Job from a CronJob |
 | PATCH | `/api/cron/:name/schedule` | Admin | Update cron schedule |
 | PATCH | `/api/cron/:name/suspend` | Admin | Suspend/resume CronJob |
+| GET | `/api/snapshots` | Any | List active replica snapshots |
 | POST | `/api/validate` | Any | Run resource validation |
+| GET | `/api/admin/namespaces` | Admin | List cluster namespaces with tracking state |
+| PATCH | `/api/admin/namespaces/:name` | Admin | Enable/disable namespace tracking |
 
 All responses: `{ success: true, data: {} }` or `{ success: false, error: "" }`.
 

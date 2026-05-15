@@ -33,6 +33,23 @@ function loadConfig() {
   return cachedConfig;
 }
 
+function replaceConfig(nextConfig) {
+  validateConfig(nextConfig);
+
+  if (!cachedConfig) {
+    cachedConfig = nextConfig;
+    return cachedConfig;
+  }
+
+  for (const key of Object.keys(cachedConfig)) {
+    delete cachedConfig[key];
+  }
+
+  Object.assign(cachedConfig, nextConfig);
+  return cachedConfig;
+}
+
 module.exports = {
-  loadConfig
+  loadConfig,
+  replaceConfig
 };

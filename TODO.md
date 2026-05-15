@@ -44,26 +44,26 @@ Check off items as you complete them. Work one item at a time. Do not skip ahead
 
 ## Phase 5 — UI
 
-- [ ] `src/ui/css/style.css` — design tokens, layout, badges, buttons, toast
-- [ ] `src/ui/js/common.js` — `checkAuth()`, `apiFetch()`, `showToast()`, `applyRoleUI()`
-- [ ] `src/ui/login.html` — login card, POST /auth/login, redirect on success
-- [ ] `src/ui/dashboard.html` — namespace status cards, 30s auto-refresh
-- [ ] `src/ui/scale.html` — namespace selector, workload table, scale down/up buttons
-- [ ] `src/ui/cron.html` — CronJob table, suspend/resume/reschedule actions
-- [ ] `src/ui/validate.html` — namespace selector, run validation, results table
+- [x] `src/ui/css/style.css` — design tokens, layout, badges, buttons, toast
+- [x] `src/ui/js/common.js` — `checkAuth()`, `apiFetch()`, `showToast()`, `applyRoleUI()`
+- [x] `src/ui/login.html` — login card, POST /auth/login, redirect on success
+- [x] `src/ui/dashboard.html` — namespace status cards, 30s auto-refresh
+- [x] `src/ui/scale.html` — namespace selector, workload table, scale down/up buttons
+- [x] `src/ui/cron.html` — CronJob table, suspend/resume/reschedule actions
+- [x] `src/ui/validate.html` — namespace selector, run validation, results table
 
 ---
 
 ## Phase 6 — Kubernetes Manifests
 
-- [ ] `manifests/namespace.yaml` — `kuberest` namespace
-- [ ] `manifests/serviceaccount.yaml` — `kuberest` ServiceAccount
-- [ ] `manifests/rbac.yaml` — ClusterRole + ClusterRoleBinding with exact permissions needed
-- [ ] `manifests/configmap-config.yaml` — ConfigMap mounting `config.yaml` into the pod
-- [ ] `manifests/deployment.yaml` — Express app Deployment, env vars, volume mounts
-- [ ] `manifests/service.yaml` — ClusterIP service on port 3000
-- [ ] `manifests/cronjob-scale-down.yaml` — Friday 8 PM MT, `--mode scale-down --all`
-- [ ] `manifests/cronjob-scale-up.yaml` — Monday 6 AM MT, `--mode scale-up --all`
+- [x] `manifests/namespace.yaml` — `kuberest` namespace
+- [x] `manifests/serviceaccount.yaml` — `kuberest` ServiceAccount
+- [x] `manifests/rbac.yaml` — ClusterRole + ClusterRoleBinding with exact permissions needed
+- [x] `manifests/configmap-config.yaml` — ConfigMap mounting `config.yaml` into the pod
+- [x] `manifests/deployment.yaml` — Express app Deployment, env vars, volume mounts
+- [x] `manifests/service.yaml` — ClusterIP service on port 3000
+- [x] `manifests/cronjob-scale-down.yaml` — Friday 8 PM MT, `--mode scale-down --all`
+- [x] `manifests/cronjob-scale-up.yaml` — Monday 6 AM MT, `--mode scale-up --all`
 
 ---
 
@@ -71,9 +71,10 @@ Check off items as you complete them. Work one item at a time. Do not skip ahead
 
 - [x] `README.md` — setup instructions, how to generate bcrypt hashes, how to deploy, how to configure comms
 - [x] Add `NODE_ENV=development` fallback to `src/k8s/client.js` for local dev
-- [ ] Smoke test: scale down + up a test namespace end-to-end
-- [ ] Smoke test: validation scan returns correct pass/fail
-- [ ] Smoke test: CronJob suspend/resume via UI
+- [x] Smoke test: scale down + up a test namespace end-to-end
+- [x] Smoke test: validation scan returns correct pass/fail
+- [x] Smoke test: CronJob suspend/resume via UI
+- [x] UI revamp from `DESIGN.md` + intuitive CronJob creation wizard
 
 ---
 

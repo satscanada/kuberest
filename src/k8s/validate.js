@@ -1,18 +1,10 @@
 const { appsV1 } = require("./client");
-
-function getK8sErrorMessage(error) {
-  return (
-    error?.body?.message ||
-    error?.response?.body?.message ||
-    error?.message ||
-    "Unknown K8s error"
-  );
-}
+const { getK8sErrorMessage, listItems } = require("./helpers");
 
 async function listDeployments(namespace) {
   try {
-    const response = await appsV1.listNamespacedDeployment(namespace);
-    return response.body.items || [];
+    const response = await appsV1.listNamespacedDeployment({ namespace });
+    return listItems(response);
   } catch (error) {
     throw new Error(`K8s API error listing deployments: ${getK8sErrorMessage(error)}`);
   }
@@ -20,8 +12,8 @@ async function listDeployments(namespace) {
 
 async function listStatefulSets(namespace) {
   try {
-    const response = await appsV1.listNamespacedStatefulSet(namespace);
-    return response.body.items || [];
+    const response = await appsV1.listNamespacedStatefulSet({ namespace });
+    return listItems(response);
   } catch (error) {
     throw new Error(`K8s API error listing statefulsets: ${getK8sErrorMessage(error)}`);
   }
@@ -33,18 +25,10 @@ function findMissingResourceFields(container) {
   const requests = resources.requests || {};
   const limits = resources.limits || {};
 
-  if (!requests.cpu) {
-    missing.push("resources.requests.cpu");
-  }
-  if (!requests.memory) {
-    missing.push("resources.requests.memory");
-  }
-  if (!limits.cpu) {
-    missing.push("resources.limits.cpu");
-  }
-  if (!limits.memory) {
-    missing.push("resources.limits.memory");
-  }
+  if (!requests.cpu) missing.push("resources.requests.cpu");
+  if (!requests.memory) missing.push("resources.requests.memory");
+  if (!limits.cpu) missing.push("resources.limits.cpu");
+  if (!limits.memory) missing.push("resources.limits.memory");
 
   return missing;
 }
@@ -78,10 +62,7 @@ async function validateNamespace(namespace) {
       if (missingFields.length === 0) {
         passed.push(entry);
       } else {
-        failed.push({
-          ...entry,
-          missing: missingFields
-        });
+        failed.push({ ...entry, missing: missingFields });
       }
     }
   }

@@ -1,89 +1,40 @@
-const { appsV1, coreV1 } = require("./client");
+const { appsV1 } = require("./client");
 const { sendCommsEvent } = require("./comms");
+const { getK8sErrorMessage } = require("./helpers");
+const { clearSnapshot, readSnapshot, writeSnapshot } = require("./snapshot");
 const logger = require("../logger");
 
-const TOOL_NAMESPACE = process.env.TOOL_NAMESPACE || "kuberest";
-const SNAPSHOT_KEY = "snapshot";
-const PATCH_OPTIONS = {
-  headers: {
-    "Content-Type": "application/merge-patch+json"
-  }
-};
-
-function getK8sErrorMessage(error) {
-  return (
-    error?.body?.message ||
-    error?.response?.body?.message ||
-    error?.message ||
-    "Unknown K8s error"
-  );
-}
-
-function snapshotConfigMapName(namespace) {
-  return `kuberest-snapshot-${namespace}`;
-}
-
-async function readSnapshot(namespace) {
-  try {
-    const response = await coreV1.readNamespacedConfigMap(snapshotConfigMapName(namespace), TOOL_NAMESPACE);
-    const snapshotRaw = response.body?.data?.[SNAPSHOT_KEY];
-
-    if (!snapshotRaw) {
-      throw new Error("Snapshot ConfigMap found but snapshot data is missing");
-    }
-
-    const snapshot = JSON.parse(snapshotRaw);
-    if (!Array.isArray(snapshot.workloads)) {
-      throw new Error("Snapshot data is invalid: workloads must be an array");
-    }
-
-    return snapshot;
-  } catch (error) {
-    if (error?.response?.statusCode === 404 || error?.statusCode === 404) {
-      throw new Error(`Snapshot not found for namespace ${namespace}`);
-    }
-    if (error instanceof SyntaxError) {
-      throw new Error(`Snapshot parse failed: ${error.message}`);
-    }
-    if (error.message?.startsWith("Snapshot")) {
-      throw error;
-    }
-    throw new Error(`K8s API error reading snapshot: ${getK8sErrorMessage(error)}`);
-  }
-}
-
-async function clearSnapshot(namespace) {
-  try {
-    await coreV1.deleteNamespacedConfigMap(snapshotConfigMapName(namespace), TOOL_NAMESPACE);
-  } catch (error) {
-    throw new Error(`K8s API error clearing snapshot: ${getK8sErrorMessage(error)}`);
-  }
-}
-
 async function restoreDeployment(namespace, name, replicas) {
-  await appsV1.patchNamespacedDeployment(
+  await appsV1.patchNamespacedDeployment({
     name,
     namespace,
-    { spec: { replicas } },
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    PATCH_OPTIONS
-  );
+    body: [{ op: "replace", path: "/spec/replicas", value: replicas }]
+  });
 }
 
 async function restoreStatefulSet(namespace, name, replicas) {
-  await appsV1.patchNamespacedStatefulSet(
+  await appsV1.patchNamespacedStatefulSet({
     name,
     namespace,
-    { spec: { replicas } },
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    PATCH_OPTIONS
-  );
+    body: [{ op: "replace", path: "/spec/replicas", value: replicas }]
+  });
+}
+
+async function restoreWorkload(namespace, workload) {
+  const desiredReplicas = workload.replicas ?? 0;
+  if (workload.kind === "Deployment") {
+    await restoreDeployment(namespace, workload.name, desiredReplicas);
+  } else if (workload.kind === "StatefulSet") {
+    await restoreStatefulSet(namespace, workload.name, desiredReplicas);
+  } else {
+    throw new Error(`Unsupported workload kind in snapshot: ${workload.kind}`);
+  }
+
+  return {
+    name: workload.name,
+    kind: workload.kind,
+    restoredReplicas: desiredReplicas
+  };
 }
 
 async function scaleUp(namespace, triggeredBy) {
@@ -94,21 +45,8 @@ async function scaleUp(namespace, triggeredBy) {
     const snapshot = await readSnapshot(namespace);
 
     for (const workload of snapshot.workloads) {
-      const desiredReplicas = workload.replicas ?? 0;
       try {
-        if (workload.kind === "Deployment") {
-          await restoreDeployment(namespace, workload.name, desiredReplicas);
-        } else if (workload.kind === "StatefulSet") {
-          await restoreStatefulSet(namespace, workload.name, desiredReplicas);
-        } else {
-          throw new Error(`Unsupported workload kind in snapshot: ${workload.kind}`);
-        }
-
-        restoredWorkloads.push({
-          name: workload.name,
-          kind: workload.kind,
-          restoredReplicas: desiredReplicas
-        });
+        restoredWorkloads.push(await restoreWorkload(namespace, workload));
       } catch (error) {
         const message = `Failed restoring ${workload.kind}/${workload.name}: ${getK8sErrorMessage(error)}`;
         errors.push(message);
@@ -160,6 +98,83 @@ async function scaleUp(namespace, triggeredBy) {
   }
 }
 
+async function scaleUpWorkload(namespace, workloadRef, triggeredBy) {
+  const errors = [];
+  const restoredWorkloads = [];
+
+  try {
+    if (!["Deployment", "StatefulSet"].includes(workloadRef.kind)) {
+      throw new Error("kind must be Deployment or StatefulSet");
+    }
+
+    const snapshot = await readSnapshot(namespace);
+    const workload = snapshot.workloads.find((entry) => entry.kind === workloadRef.kind && entry.name === workloadRef.name);
+
+    if (!workload) {
+      throw new Error(`Snapshot not found for ${workloadRef.kind}/${workloadRef.name}`);
+    }
+
+    try {
+      restoredWorkloads.push(await restoreWorkload(namespace, workload));
+    } catch (error) {
+      const message = `Failed restoring ${workload.kind}/${workload.name}: ${getK8sErrorMessage(error)}`;
+      errors.push(message);
+      logger.warn({ namespace, workload: workload.name, kind: workload.kind, err: message }, "Workload scale-up restore failed");
+    }
+
+    if (errors.length === 0) {
+      const remainingWorkloads = snapshot.workloads.filter((entry) => !(entry.kind === workload.kind && entry.name === workload.name));
+      if (remainingWorkloads.length === 0) {
+        await clearSnapshot(namespace);
+      } else {
+        await writeSnapshot(namespace, {
+          ...snapshot,
+          workloads: remainingWorkloads
+        });
+      }
+    }
+
+    const success = errors.length === 0;
+    sendCommsEvent({
+      event: "manual_scale_up",
+      timestamp: new Date().toISOString(),
+      namespace,
+      triggered_by: triggeredBy,
+      details: {
+        workloads_affected: restoredWorkloads.length,
+        status: success ? "success" : "partial"
+      }
+    }).catch(() => {});
+
+    return {
+      success,
+      workloads: restoredWorkloads,
+      errors
+    };
+  } catch (error) {
+    const message = error.message || "Workload scale up failed";
+    logger.warn({ namespace, workload: workloadRef?.name, kind: workloadRef?.kind, err: message }, "Workload scale-up operation failed");
+
+    sendCommsEvent({
+      event: "manual_scale_up",
+      timestamp: new Date().toISOString(),
+      namespace,
+      triggered_by: triggeredBy,
+      details: {
+        workloads_affected: 0,
+        status: "failed"
+      }
+    }).catch(() => {});
+
+    return {
+      success: false,
+      workloads: [],
+      errors: [message]
+    };
+  }
+}
+
 module.exports = {
-  scaleUp
+  scaleUp,
+  scaleUpWorkload
 };

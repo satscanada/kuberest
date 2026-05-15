@@ -1,0 +1,18 @@
+services:
+  kuberest:
+    build: .
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "desktop-control-plane:host-gateway"
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: info
+      PORT: 3000
+      TOOL_NAMESPACE: kuberest
+    volumes:
+      - ./config.docker.yaml:/app/config.yaml:ro
+      - ${HOME}/.kube/config:/kube/config:ro
+    command: ["sh", "/app/scripts/docker-entrypoint.sh"]
+    restart: unless-stopped

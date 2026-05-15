@@ -6,9 +6,9 @@ Load this file at the start of every dev session. It tells you exactly where the
 
 ## Current Status
 
-**Phase**: Scaffold complete — source code not yet started
-**Last completed**: All checkpoint documentation (`.github/`, `CLAUDE.md`, `LOAD_CONTEXT.md`, `TODO.md`)
-**Next task**: Begin Phase 1 — Foundation (see TODO.md)
+**Phase**: Phases 1–7 complete (MVP done)
+**Last completed**: Kubernetes manifests + smoke tests
+**Next task**: Deferred backlog items (see TODO.md)
 
 ---
 

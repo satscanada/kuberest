@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kuberest-scale-up
+  namespace: kuberest
+spec:
+  schedule: "0 6 * * 1"
+  timeZone: "America/Denver"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: kuberest
+          restartPolicy: OnFailure
+          containers:
+            - name: kuberest-cron
+              image: kuberest:latest
+              imagePullPolicy: IfNotPresent
+              command: ["node", "scripts/cronEntry.js", "--mode", "scale-up", "--all"]
+              env:
+                - name: TOOL_NAMESPACE
+                  value: "kuberest"
+                - name: LOG_LEVEL
+                  value: "info"
+              volumeMounts:
+                - name: config
+                  mountPath: /app/config.yaml
+                  subPath: config.yaml
+                  readOnly: true
+          volumes:
+            - name: config
+              configMap:
+                name: kuberest-config
+                items:
+                  - key: config.yaml
+                    path: config.yaml

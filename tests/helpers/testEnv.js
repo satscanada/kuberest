@@ -1,4 +1,6 @@
 const path = require("node:path");
+const fs = require("node:fs");
+const yaml = require("js-yaml");
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -32,53 +34,82 @@ function installK8sMocks(overrides = {}) {
   const deployments = overrides.deployments || [sampleDeployment("payment-api", 2)];
   const statefulSets = overrides.statefulSets || [];
   let snapshotStore = overrides.initialSnapshot || null;
+  let configStore = yaml.load(fs.readFileSync(process.env.KUBEREST_CONFIG_PATH, "utf8"));
 
   client.appsV1 = {
-    listNamespacedDeployment: async (namespace) => {
+    listNamespacedDeployment: async ({ namespace }) => {
       callLog.push({ method: "listNamespacedDeployment", namespace });
-      return { body: { items: deployments } };
+      return { items: deployments };
     },
-    listNamespacedStatefulSet: async (namespace) => {
+    listNamespacedStatefulSet: async ({ namespace }) => {
       callLog.push({ method: "listNamespacedStatefulSet", namespace });
-      return { body: { items: statefulSets } };
+      return { items: statefulSets };
     },
-    patchNamespacedDeployment: async (name, namespace) => {
+    patchNamespacedDeployment: async ({ name, namespace }) => {
       callLog.push({ method: "patchNamespacedDeployment", name, namespace });
       return {};
     },
-    patchNamespacedStatefulSet: async (name, namespace) => {
+    patchNamespacedStatefulSet: async ({ name, namespace }) => {
       callLog.push({ method: "patchNamespacedStatefulSet", name, namespace });
       return {};
     }
   };
 
   client.coreV1 = {
-    createNamespacedConfigMap: async (ns, body) => {
+    listNamespace: async () => ({
+      items: overrides.namespaces || [
+        { metadata: { name: "default" }, status: { phase: "Active" } },
+        { metadata: { name: "payments" }, status: { phase: "Active" } },
+        { metadata: { name: "reporting" }, status: { phase: "Active" } },
+        { metadata: { name: "sandbox" }, status: { phase: "Active" } }
+      ]
+    }),
+    listNamespacedConfigMap: async () => ({
+      items: snapshotStore
+        ? [
+            {
+              metadata: { name: "kuberest-snapshot-payments", namespace: "kuberest-test" },
+              data: { snapshot: JSON.stringify(snapshotStore) }
+            }
+          ]
+        : []
+    }),
+    createNamespacedConfigMap: async ({ namespace, body }) => {
       callLog.push({ method: "createNamespacedConfigMap", name: body.metadata.name });
       snapshotStore = JSON.parse(body.data.snapshot);
       return {};
     },
-    replaceNamespacedConfigMap: async (name, ns, body) => {
+    replaceNamespacedConfigMap: async ({ name, body }) => {
       callLog.push({ method: "replaceNamespacedConfigMap", name });
-      snapshotStore = JSON.parse(body.data.snapshot);
+      if (name === "kuberest-config") {
+        configStore = yaml.load(body.data["config.yaml"]);
+      } else {
+        snapshotStore = JSON.parse(body.data.snapshot);
+      }
       return {};
     },
-    readNamespacedConfigMap: async (name) => {
+    readNamespacedConfigMap: async ({ name }) => {
       callLog.push({ method: "readNamespacedConfigMap", name });
+      if (name === "kuberest-config") {
+        return {
+          metadata: { name, namespace: "kuberest-test" },
+          data: {
+            "config.yaml": yaml.dump(configStore)
+          }
+        };
+      }
       if (!snapshotStore) {
         const error = new Error("not found");
-        error.statusCode = 404;
+        error.code = 404;
         throw error;
       }
       return {
-        body: {
-          data: {
-            snapshot: JSON.stringify(snapshotStore)
-          }
+        data: {
+          snapshot: JSON.stringify(snapshotStore)
         }
       };
     },
-    deleteNamespacedConfigMap: async (name) => {
+    deleteNamespacedConfigMap: async ({ name }) => {
       callLog.push({ method: "deleteNamespacedConfigMap", name });
       snapshotStore = null;
       return {};
@@ -87,17 +118,41 @@ function installK8sMocks(overrides = {}) {
 
   client.batchV1 = {
     listNamespacedCronJob: async () => ({
-      body: {
-        items: [
-          {
-            metadata: { name: "kuberest-scale-down", namespace: "kuberest-test" },
-            spec: { schedule: "0 20 * * 5", suspend: false, timeZone: "America/Denver" }
-          }
-        ]
-      }
+      items: [
+        {
+          metadata: { name: "kuberest-scale-down", namespace: "kuberest-test" },
+          spec: { schedule: "0 20 * * 5", suspend: false, timeZone: "America/Denver" }
+        }
+      ]
     }),
-    patchNamespacedCronJob: async (name, ns, body) => {
+    patchNamespacedCronJob: async ({ name, body }) => {
       callLog.push({ method: "patchNamespacedCronJob", name, body });
+      return {};
+    },
+    readNamespacedCronJob: async ({ name }) => {
+      callLog.push({ method: "readNamespacedCronJob", name });
+      return {
+        metadata: { name, namespace: "kuberest-test" },
+        spec: {
+          jobTemplate: {
+            spec: {
+              template: {
+                spec: {
+                  restartPolicy: "OnFailure",
+                  containers: [{ name: "kuberest-cron", image: "kuberest:test" }]
+                }
+              }
+            }
+          }
+        }
+      };
+    },
+    createNamespacedJob: async ({ namespace, body }) => {
+      callLog.push({ method: "createNamespacedJob", namespace, body });
+      return {};
+    },
+    createNamespacedCronJob: async ({ namespace, body }) => {
+      callLog.push({ method: "createNamespacedCronJob", namespace, body });
       return {};
     }
   };

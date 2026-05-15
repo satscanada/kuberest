@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuberest
+  namespace: kuberest
+  labels:
+    app: kuberest
+spec:
+  type: ClusterIP
+  selector:
+    app: kuberest
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
